@@ -1,88 +1,85 @@
-from flask import Flask, request, render_template, jsonify
-import os
+from flask import Flask, render_template, request, jsonify
 import cv2
-import dlib
-import fitz  # PyMuPDF for handling PDF
-import pytesseract
 import numpy as np
+import base64
+import re
+import os
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
 
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Load Haar Cascade
+haar_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-# Load Dlib's face detector
-detector = dlib.get_frontal_face_detector()
+def extract_face_from_document(document_path):
+    image = cv2.imread(document_path)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    faces = haar_cascade.detectMultiScale(gray, 1.1, 4)
+    if len(faces) == 0:
+        return None
+    x, y, w, h = faces[0]
+    return gray[y:y+h, x:x+w]
 
-# Route for the home page
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-# Route for handling file uploads
-@app.route('/upload', methods=['POST'])
-def upload():
-    video = request.files['video']
-    aadhar_pdf = request.files['aadhar_pdf']
-
-    # Save uploaded files
-    video_path = os.path.join(app.config['UPLOAD_FOLDER'], video.filename)
-    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], aadhar_pdf.filename)
-    video.save(video_path)
-    aadhar_pdf.save(pdf_path)
-
-    # Extract face from Aadhaar PDF
-    face_from_aadhar = extract_face_from_aadhar(pdf_path)
-
-    # Extract face from video
-    face_from_video = extract_face_from_video(video_path)
-
-    # Compare faces
-    if face_from_aadhar is not None and face_from_video is not None:
-        match_result = compare_faces(face_from_aadhar, face_from_video)
-        message = "Faces Matched" if match_result else "Faces Not Matched"
-    else:
-        message = "Unable to detect faces in either Aadhaar or video."
-
-    return jsonify({'message': message})
-
-def extract_face_from_aadhar(pdf_path):
-    # Extract the first page of the PDF as an image
-    pdf = fitz.open(pdf_path)
-    page = pdf.load_page(0)
-    pix = page.get_pixmap()
-    img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-
-    # Convert to grayscale for face detection
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    faces = detector(gray)
-
-    # Extract the first detected face
-    if len(faces) > 0:
-        return img[faces[0].top():faces[0].bottom(), faces[0].left():faces[0].right()]
-    return None
-
-def extract_face_from_video(video_path):
-    cap = cv2.VideoCapture(video_path)
-    ret, frame = cap.read()
-    if ret:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = detector(gray)
-        if len(faces) > 0:
-            return frame[faces[0].top():faces[0].bottom(), faces[0].left():faces[0].right()]
-    return None
+def decode_base64_image(data_url):
+    header, encoded = data_url.split(",", 1)
+    image_data = base64.b64decode(encoded)
+    nparr = np.frombuffer(image_data, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    return img
 
 def compare_faces(face1, face2):
-    # Resize both faces for comparison (Optional: You can use a pre-trained model like VGGFace)
-    face1_resized = cv2.resize(face1, (150, 150))
-    face2_resized = cv2.resize(face2, (150, 150))
+    if face1 is None or face2 is None:
+        return False
+    face1 = cv2.resize(face1, (100, 100))
+    face2 = cv2.resize(face2, (100, 100))
+    diff = cv2.absdiff(face1, face2)
+    score = np.sum(diff)
+    threshold = 5000
+    return score < threshold
 
-    # Calculate the mean squared error between the two faces
-    diff = cv2.absdiff(face1_resized, face2_resized)
-    mse = np.mean(diff**2)
+@app.route('/upload_document', methods=['POST'])
+def upload_document():
+    if 'document' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    document = request.files['document']
+    if document.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    document_path = os.path.join(app.config['UPLOAD_FOLDER'], document.filename)
+    document.save(document_path)
+    document_face = extract_face_from_document(document_path)
+    if document_face is None:
+        return jsonify({"error": "No face found in document"}), 400
+    app.config['document_face'] = document_face  # Save for later comparison
+    return jsonify({"result": "Document uploaded successfully"}), 200
 
-    # Threshold for matching faces
-    return mse < 1000  # You can adjust this threshold
+@app.route('/compare_live_video', methods=['POST'])
+def compare_live_video():
+    data = request.get_json()
+    if 'image' not in data:
+        return jsonify({"error": "No image data"}), 400
+    
+    frame = decode_base64_image(data['image'])
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = haar_cascade.detectMultiScale(gray, 1.1, 4)
+    if len(faces) == 0:
+        return jsonify({"error": "No face found in video"}), 400
+
+    x, y, w, h = faces[0]
+    live_video_face = gray[y:y+h, x:x+w]
+    
+    # Compare the face from the live video with the document face
+    document_face = app.config.get('document_face')
+    if document_face is None:
+        return jsonify({"error": "Document face not uploaded"}), 400
+
+    if compare_faces(document_face, live_video_face):
+        return jsonify({"result": "FACE MATCHED"}), 200
+    else:
+        return jsonify({"result": "FACE UNMATCHED"}), 400
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 if __name__ == '__main__':
-    app.run(debug=True, port=4555)
+    app.run(debug=True)
