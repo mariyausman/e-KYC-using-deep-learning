@@ -82,7 +82,7 @@ const LivenessCheck = () => {
           Start
         </button>
         {isProcessing && (
-          <div className="flex items-center mt-4 text-blue-500 text-lg">
+          <div className="flex items-center mt-4 text-blue-500 text-xl">
             <FaSpinner className="animate-spin mr-2" /> Processing...
           </div>
         )}

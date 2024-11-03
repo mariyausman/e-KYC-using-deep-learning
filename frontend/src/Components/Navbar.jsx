@@ -8,7 +8,7 @@ const Navbar = () => {
         <div className="absolute inset-0 bg-[radial-gradient(circle_800px_at_100%_200px,#d5c5ff,transparent)]"></div>
       </div>
 
-      <div className="navbar bg-[#8294C4] min-h-0 h-12">
+      <div className="navbar bg-[#627abb] min-h-0 h-12 text-slate-50">
         <div className="navbar-start">
           <div className="dropdown">
             <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
@@ -42,11 +42,13 @@ const Navbar = () => {
               </li>
             </ul>
           </div>
-          <Link to="/" className="btn btn-ghost text-xl text-black">e-KYC</Link>
+          <Link to="/" className="btn btn-ghost text-xl">
+            e-KYC
+          </Link>
         </div>
-        
+
         <div className="navbar-center hidden lg:flex">
-          <ul className="menu menu-horizontal px-1 text-black">
+          <ul className="menu menu-horizontal px-1">
             <li>
               <Link to="/">Home</Link>
             </li>
@@ -58,9 +60,16 @@ const Navbar = () => {
             </li>
           </ul>
         </div>
-        
+
         <div className="navbar-end">
-          <Link to="/contact" className="btn btn-sm">Contact Us</Link>
+          <a
+            href="https://forms.gle/dnXUcXooFW2meay28" // Replace with your actual Google Form link
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-sm bg-transparent text-slate-50 hover:bg-gray-700"
+          >
+            Contact Us
+          </a>
         </div>
       </div>
     </div>
