@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import OTP from './OTP'; 
+import toast, { Toaster } from 'react-hot-toast';
 
 function UploadForm() {
   const [aadhar, setAadhar] = useState(null);
@@ -26,15 +27,15 @@ function UploadForm() {
           'Content-Type': 'multipart/form-data'
         }
       });
-      alert("Files uploaded successfully!");
+      toast.success("Files uploaded successfully!");
       
       setTimeout(() => {
-        alert(response.data.message);
+        toast.success(response.data.message);
         setShowOtpVerification(true);
       }, 1000);
 
     } catch (error) {
-      alert(error.response?.data?.error || "File upload failed");
+      toast.error(error.response?.data?.error || "File upload failed");
     } finally {
       setLoading(false);
     }
@@ -47,7 +48,7 @@ function UploadForm() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-200 p-6">
       <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">Upload Aadhaar and PAN</h2>
+        <h2 className="text-2xl font-semibold text-center text-gray-800 mb-6">Step 1: Upload Aadhaar and PAN</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Aadhaar Input */}
           <div>
